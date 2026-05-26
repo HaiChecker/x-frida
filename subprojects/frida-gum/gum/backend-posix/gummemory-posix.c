@@ -14,6 +14,17 @@
 #include <sys/mman.h>
 #ifdef HAVE_LINUX
 # include <sys/syscall.h>
+# ifndef __NR_memfd_create
+#  if defined (__x86_64__)
+#   define __NR_memfd_create 319
+#  elif defined (__i386__)
+#   define __NR_memfd_create 356
+#  elif defined (__aarch64__)
+#   define __NR_memfd_create 279
+#  elif defined (__arm__)
+#   define __NR_memfd_create 385
+#  endif
+# endif
 # ifndef MFD_CLOEXEC
 #  define MFD_CLOEXEC 0x0001U
 # endif
