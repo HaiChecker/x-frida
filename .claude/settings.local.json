@@ -30,7 +30,14 @@
       "Bash(/tmp/test_writer.c:*)",
       "Bash(gcc -Wall -o /tmp/test_writer /tmp/test_writer.c)",
       "Bash(/tmp/test_writer)",
-      "Bash(# Check if our Vala/Python fixes are committed or still pending git diff HEAD -- subprojects/frida-core/lib/base/socket.vala subprojects/frida-core/server/server.vala subprojects/frida-tools/setup.py subprojects/frida-python/setup.py)"
+      "Bash(# Check if our Vala/Python fixes are committed or still pending git diff HEAD -- subprojects/frida-core/lib/base/socket.vala subprojects/frida-core/server/server.vala subprojects/frida-tools/setup.py subprojects/frida-python/setup.py)",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\(''.github/workflows/release-android.yml''\\)\\); print\\(''YAML OK''\\)\")",
+      "Bash(python3 -c \"import json, sys; exec\\(''try:\\\\n import yaml\\\\nexcept:\\\\n print\\(\"\"no yaml module, checking manually\"\"\\)''\\); \")",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\(''.github/workflows/release-android.yml''\\)\\); print\\(''YAML valid''\\)\")",
+      "Bash(# Find all nested subprojects/*/subprojects/ directories with .wrap files find subprojects/*/subprojects -name \"*.wrap\")",
+      "Bash(grep -v \"frida-\\\\|capstone\\\\|^subprojects$\")",
+      "Bash(# Check what's in these - are they full source or just wrap files? ls subprojects/libsoup/)"
     ]
   }
 }
