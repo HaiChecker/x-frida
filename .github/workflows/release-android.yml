@@ -1,0 +1,361 @@
+name: Release x-frida
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      stealth_preset:
+        description: 'Stealth preset'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - minimal
+
+env:
+  ANDROID_NDK_VERSION: r29
+  # --- Stealth Configuration ---
+  # Modify these to customize your build
+  STEALTH_MEMFD_NAME: jit-cache
+  STEALTH_THREAD_JS: Signal Catcher
+  STEALTH_SERVER_NAME: media.codec
+  STEALTH_HELPER_NAME: media.extractor
+  STEALTH_GADGET_NAME: libhwui
+  STEALTH_PORT: '52173'
+  STEALTH_THREAD_MAIN: HwBinder:1
+  STEALTH_THREAD_GADGET: RenderThread
+  STEALTH_SERVER_DIR: com.android.providers.media
+  STEALTH_MAGIC: deadbeefcafebabe
+
+jobs:
+  # ============================================================
+  # Android: frida-server, frida-gadget, frida-inject
+  # ============================================================
+  build-android:
+    strategy:
+      matrix:
+        arch: [arm64, arm, x86_64, x86]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+          add-to-path: false
+
+      - name: Set environment
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "FRIDA_PREFIX=${{ github.workspace }}/dist" >> $GITHUB_ENV
+
+      - name: Configure
+        run: |
+          ./configure \
+            "--prefix=$FRIDA_PREFIX" \
+            --host=android-${{ matrix.arch }} \
+            -- \
+            "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
+            "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
+            "-Dfrida-core:stealth_server_name=$STEALTH_SERVER_NAME" \
+            "-Dfrida-core:stealth_helper_name=$STEALTH_HELPER_NAME" \
+            "-Dfrida-core:stealth_gadget_name=$STEALTH_GADGET_NAME" \
+            "-Dfrida-core:stealth_port=$STEALTH_PORT" \
+            "-Dfrida-core:stealth_thread_main=$STEALTH_THREAD_MAIN" \
+            "-Dfrida-core:stealth_thread_gadget=$STEALTH_THREAD_GADGET" \
+            "-Dfrida-core:stealth_server_dir=$STEALTH_SERVER_DIR" \
+            "-Dfrida-core:stealth_magic=$STEALTH_MAGIC" \
+            -Dfrida-gum:devkits=gum,gumjs \
+            -Dfrida-core:devkits=core
+
+      - name: Compile
+        run: make -j$(nproc)
+
+      - name: Install
+        run: make install
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+
+          # Server
+          SERVER=$(find "$FRIDA_PREFIX" -name "$STEALTH_SERVER_NAME" -type f | head -1)
+          [ -z "$SERVER" ] && SERVER=$(find "$FRIDA_PREFIX/bin" -type f | head -1)
+          if [ -n "$SERVER" ]; then
+            xz -c "$SERVER" > "release/x-frida-server-android-${{ matrix.arch }}.xz"
+          fi
+
+          # Inject
+          INJECT=$(find "$FRIDA_PREFIX" -name "frida-inject" -type f | head -1)
+          if [ -n "$INJECT" ]; then
+            xz -c "$INJECT" > "release/x-frida-inject-android-${{ matrix.arch }}.xz"
+          fi
+
+          # Gadget
+          GADGET=$(find "$FRIDA_PREFIX" -name "*.so" -path "*/frida-1.0/*" | head -1)
+          if [ -n "$GADGET" ]; then
+            xz -c "$GADGET" > "release/x-frida-gadget-android-${{ matrix.arch }}.so.xz"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: release/*
+
+  # ============================================================
+  # Python wheel: x-frida (native extension with magic baked in)
+  # Builds for macOS arm64, macOS x86_64, Linux x86_64
+  # ============================================================
+  build-python-macos:
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+      fail-fast: false
+    runs-on: macos-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install build deps
+        run: pip install setuptools wheel
+
+      - name: Set environment
+        run: echo "FRIDA_PREFIX=${{ github.workspace }}/dist" >> $GITHUB_ENV
+
+      - name: Configure
+        run: |
+          ./configure \
+            "--prefix=$FRIDA_PREFIX" \
+            --host=macos-${{ matrix.arch }} \
+            --enable-frida-python \
+            -- \
+            "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
+            "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
+            "-Dfrida-core:stealth_server_name=$STEALTH_SERVER_NAME" \
+            "-Dfrida-core:stealth_helper_name=$STEALTH_HELPER_NAME" \
+            "-Dfrida-core:stealth_gadget_name=$STEALTH_GADGET_NAME" \
+            "-Dfrida-core:stealth_port=$STEALTH_PORT" \
+            "-Dfrida-core:stealth_thread_main=$STEALTH_THREAD_MAIN" \
+            "-Dfrida-core:stealth_thread_gadget=$STEALTH_THREAD_GADGET" \
+            "-Dfrida-core:stealth_server_dir=$STEALTH_SERVER_DIR" \
+            "-Dfrida-core:stealth_magic=$STEALTH_MAGIC"
+
+      - name: Compile
+        run: make -j$(sysctl -n hw.ncpu)
+
+      - name: Install
+        run: make install
+
+      - name: Build Python wheel
+        run: |
+          export FRIDA_EXTENSION=$(find "$FRIDA_PREFIX" -name "_frida*.so" -o -name "_frida*.abi3.so" | head -1)
+          case "${{ matrix.arch }}" in
+            x86_64) export _PYTHON_HOST_PLATFORM=macosx-10.13-x86_64 ;;
+            arm64)  export _PYTHON_HOST_PLATFORM=macosx-11.0-arm64 ;;
+          esac
+          cd subprojects/frida-python
+          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-macos-${{ matrix.arch }}
+          path: ${{ env.FRIDA_PREFIX }}/wheels/*.whl
+
+  build-python-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install build deps
+        run: pip install setuptools wheel
+
+      - name: Set environment
+        run: echo "FRIDA_PREFIX=${{ github.workspace }}/dist" >> $GITHUB_ENV
+
+      - name: Configure
+        run: |
+          ./configure \
+            "--prefix=$FRIDA_PREFIX" \
+            --enable-frida-python \
+            -- \
+            "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
+            "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
+            "-Dfrida-core:stealth_server_name=$STEALTH_SERVER_NAME" \
+            "-Dfrida-core:stealth_helper_name=$STEALTH_HELPER_NAME" \
+            "-Dfrida-core:stealth_gadget_name=$STEALTH_GADGET_NAME" \
+            "-Dfrida-core:stealth_port=$STEALTH_PORT" \
+            "-Dfrida-core:stealth_thread_main=$STEALTH_THREAD_MAIN" \
+            "-Dfrida-core:stealth_thread_gadget=$STEALTH_THREAD_GADGET" \
+            "-Dfrida-core:stealth_server_dir=$STEALTH_SERVER_DIR" \
+            "-Dfrida-core:stealth_magic=$STEALTH_MAGIC"
+
+      - name: Compile
+        run: make -j$(nproc)
+
+      - name: Install
+        run: make install
+
+      - name: Build Python wheel
+        run: |
+          export FRIDA_EXTENSION=$(find "$FRIDA_PREFIX" -name "_frida*.so" | head -1)
+          export _PYTHON_HOST_PLATFORM=linux-x86_64
+          cd subprojects/frida-python
+          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-linux-x86_64
+          path: ${{ env.FRIDA_PREFIX }}/wheels/*.whl
+
+  # ============================================================
+  # Python wheel: x-frida-tools (pure Python, no compilation)
+  # ============================================================
+  build-python-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build deps
+        run: pip install setuptools wheel build
+
+      - name: Build x-frida-tools wheel
+        run: |
+          cd subprojects/frida-tools
+          pip wheel -w dist/ --no-deps .
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-tools
+          path: subprojects/frida-tools/dist/*.whl
+
+  # ============================================================
+  # Create GitHub Release
+  # ============================================================
+  release:
+    needs: [build-android, build-python-macos, build-python-linux, build-python-tools]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: assets/
+          merge-multiple: true
+
+      - name: List assets
+        run: find assets/ -type f | sort
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "x-frida ${{ steps.version.outputs.tag }}"
+          body: |
+            ## x-frida ${{ steps.version.outputs.tag }}
+
+            Anti-detection optimized Frida build with stealth features.
+
+            ### Android Binaries
+            | File | Description |
+            |------|-------------|
+            | `x-frida-server-android-*.xz` | Stealth frida-server |
+            | `x-frida-gadget-android-*.so.xz` | Stealth frida-gadget |
+            | `x-frida-inject-android-*.xz` | Stealth frida-inject |
+
+            ### Python Packages
+            | File | Description |
+            |------|-------------|
+            | `x_frida-*.whl` | Python bindings (with magic baked in) |
+            | `x_frida_tools-*.whl` | CLI tools (frida, frida-trace, etc.) |
+
+            ### Quick Start
+            ```bash
+            # Install Python packages (macOS/Linux)
+            pip install x_frida-*-macosx_11_0_arm64.whl   # or your platform
+            pip install x_frida_tools-*.whl
+
+            # Push server to Android device
+            xz -d x-frida-server-android-arm64.xz
+            adb push x-frida-server-android-arm64 /data/local/tmp/media.codec
+            adb shell "su -c 'chmod 755 /data/local/tmp/media.codec && /data/local/tmp/media.codec &'"
+
+            # Connect from macOS
+            frida -H 127.0.0.1:52173 -n com.target.app -l script.js
+            ```
+
+            ### Stealth Config
+            - Port: `${{ env.STEALTH_PORT }}`
+            - Magic: `${{ env.STEALTH_MAGIC }}`
+            - Server name: `${{ env.STEALTH_SERVER_NAME }}`
+            - Gadget name: `lib${{ env.STEALTH_GADGET_NAME }}.so`
+          files: assets/*
+          fail_on_unmatched_files: false

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /workspace/frida-code/subprojects/frida-gum/gum/gumcloak*)",
+      "Bash(ls /workspace/frida-code/subprojects/frida-gum/gum/guminterceptor*)",
+      "Bash(ls /workspace/frida-code/subprojects/frida-gum/gum/backend-linux/gum*)",
+      "Bash(find:*)",
+      "Bash(ls /workspace/frida-code/releng/*.py)",
+      "Bash(chmod +x:*)",
+      "Bash(git remote:*)",
+      "Bash(git checkout:*)",
+      "Bash(git config:*)",
+      "Bash(git submodule:*)",
+      "Bash(bash:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
