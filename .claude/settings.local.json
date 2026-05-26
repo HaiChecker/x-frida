@@ -14,7 +14,23 @@
       "Bash(bash:*)",
       "Bash(git rm:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(apt list:*)",
+      "Bash(apt-get update:*)",
+      "Bash(apt-get install:*)",
+      "Bash(pip3 --version)",
+      "Bash(python3 ./releng/meson/meson.py setup --help)",
+      "Bash(valac --version)",
+      "Bash(/tmp/test_memfd.c:*)",
+      "Bash(gcc -o /tmp/test_memfd /tmp/test_memfd.c)",
+      "Bash(/tmp/test_memfd)",
+      "Bash(/tmp/test_arm64_encoding.c:*)",
+      "Bash(gcc -o /tmp/test_arm64 /tmp/test_arm64_encoding.c)",
+      "Bash(/tmp/test_arm64)",
+      "Bash(/tmp/test_writer.c:*)",
+      "Bash(gcc -Wall -o /tmp/test_writer /tmp/test_writer.c)",
+      "Bash(/tmp/test_writer)",
+      "Bash(# Check if our Vala/Python fixes are committed or still pending git diff HEAD -- subprojects/frida-core/lib/base/socket.vala subprojects/frida-core/server/server.vala subprojects/frida-tools/setup.py subprojects/frida-python/setup.py)"
     ]
   }
 }
