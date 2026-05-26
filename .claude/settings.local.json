@@ -37,7 +37,8 @@
       "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\(''.github/workflows/release-android.yml''\\)\\); print\\(''YAML valid''\\)\")",
       "Bash(# Find all nested subprojects/*/subprojects/ directories with .wrap files find subprojects/*/subprojects -name \"*.wrap\")",
       "Bash(grep -v \"frida-\\\\|capstone\\\\|^subprojects$\")",
-      "Bash(# Check what's in these - are they full source or just wrap files? ls subprojects/libsoup/)"
+      "Bash(# Check what's in these - are they full source or just wrap files? ls subprojects/libsoup/)",
+      "Bash(grep -v \"\\\\.wrap$\")"
     ]
   }
 }
