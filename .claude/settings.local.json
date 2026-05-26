@@ -38,7 +38,8 @@
       "Bash(# Find all nested subprojects/*/subprojects/ directories with .wrap files find subprojects/*/subprojects -name \"*.wrap\")",
       "Bash(grep -v \"frida-\\\\|capstone\\\\|^subprojects$\")",
       "Bash(# Check what's in these - are they full source or just wrap files? ls subprojects/libsoup/)",
-      "Bash(grep -v \"\\\\.wrap$\")"
+      "Bash(grep -v \"\\\\.wrap$\")",
+      "Bash(ls subprojects/*.wrap)"
     ]
   }
 }
