@@ -56,7 +56,6 @@ jobs:
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
             --host=android-${{ matrix.arch }} \
-            --without-prebuilds=sdk:host \
             -- \
             "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
             "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
@@ -132,7 +131,6 @@ jobs:
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
             --host=macos-${{ matrix.arch }} \
-            --without-prebuilds=sdk:host \
             --enable-frida-python \
             --enable-frida-tools \
             -- \
@@ -159,13 +157,13 @@ jobs:
             arm64)  export _PYTHON_HOST_PLATFORM=macosx-11.0-arm64 ;;
           esac
           cd subprojects/frida-python
-          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+          pip wheel --break-system-packages -w "$FRIDA_PREFIX/wheels" --no-deps .
 
       - name: Build x-frida-tools wheel
         run: |
           export FRIDA_PREFIX="${{ github.workspace }}/dist"
           cd subprojects/frida-tools
-          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+          pip wheel --break-system-packages -w "$FRIDA_PREFIX/wheels" --no-deps .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -188,15 +186,13 @@ jobs:
           go-version: '1.24'
 
       - name: Install Python build deps
-        run: pip install setuptools wheel
+        run: pip install --break-system-packages setuptools wheel
 
       - name: Configure & Build
-        run: |
-          export FRIDA_PREFIX="${{ github.workspace }}/dist"
+        run: |          export FRIDA_PREFIX="${{ github.workspace }}/dist"
 
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
-            --without-prebuilds=sdk:host \
             --enable-frida-python \
             --enable-frida-tools \
             -- \
@@ -221,13 +217,13 @@ jobs:
           export FRIDA_EXTENSION=$(find "$FRIDA_PREFIX" -name "_frida*.so" | head -1)
           export _PYTHON_HOST_PLATFORM=linux-x86_64
           cd subprojects/frida-python
-          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+          pip wheel --break-system-packages -w "$FRIDA_PREFIX/wheels" --no-deps .
 
       - name: Build x-frida-tools wheel
         run: |
           export FRIDA_PREFIX="${{ github.workspace }}/dist"
           cd subprojects/frida-tools
-          pip wheel -w "$FRIDA_PREFIX/wheels" --no-deps .
+          pip wheel --break-system-packages -w "$FRIDA_PREFIX/wheels" --no-deps .
 
       - uses: actions/upload-artifact@v4
         with:
