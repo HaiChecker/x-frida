@@ -189,7 +189,8 @@ jobs:
         run: pip install --break-system-packages setuptools wheel
 
       - name: Configure & Build
-        run: |          export FRIDA_PREFIX="${{ github.workspace }}/dist"
+        run: |
+          export FRIDA_PREFIX="${{ github.workspace }}/dist"
 
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
