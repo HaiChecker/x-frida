@@ -8,7 +8,7 @@ on:
 
 env:
   ANDROID_NDK_VERSION: r29
-  # --- Stealth Configuration (edit these to customize) ---
+  # --- Stealth Configuration ---
   STEALTH_MEMFD_NAME: jit-cache
   STEALTH_THREAD_JS: Signal Catcher
   STEALTH_SERVER_NAME: media.codec
@@ -22,7 +22,7 @@ env:
 
 jobs:
   # ============================================================
-  # Android: x-frida-server, x-frida-gadget, x-frida-inject
+  # Android builds using Frida's official container
   # ============================================================
   build-android:
     strategy:
@@ -30,22 +30,16 @@ jobs:
         arch: [arm64, arm, x86_64, x86]
       fail-fast: false
     runs-on: ubuntu-latest
+    container: ghcr.io/frida/x-tools-linux-x86_64:latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       - name: Set up NDK
         id: setup-ndk
@@ -62,6 +56,7 @@ jobs:
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
             --host=android-${{ matrix.arch }} \
+            --without-prebuilds=sdk:host \
             -- \
             "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
             "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
@@ -77,7 +72,11 @@ jobs:
           make -j$(nproc)
           make install
 
+      - name: Prepare release assets
+        run: |
           mkdir -p release
+          FRIDA_PREFIX="${{ github.workspace }}/dist"
+
           # Server
           if [ -f "$FRIDA_PREFIX/bin/$STEALTH_SERVER_NAME" ]; then
             xz -c "$FRIDA_PREFIX/bin/$STEALTH_SERVER_NAME" > "release/x-frida-server-android-${{ matrix.arch }}.xz"
@@ -98,7 +97,7 @@ jobs:
           path: release/*
 
   # ============================================================
-  # Python: x-frida wheel (native, with magic) + x-frida-tools
+  # Python: x-frida wheel for macOS (native build on macOS)
   # ============================================================
   build-python-macos:
     strategy:
@@ -119,6 +118,10 @@ jobs:
         with:
           go-version: '1.24'
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install build deps
         run: pip install setuptools wheel
 
@@ -129,6 +132,7 @@ jobs:
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
             --host=macos-${{ matrix.arch }} \
+            --without-prebuilds=sdk:host \
             --enable-frida-python \
             --enable-frida-tools \
             -- \
@@ -168,26 +172,22 @@ jobs:
           name: python-macos-${{ matrix.arch }}
           path: ${{ github.workspace }}/dist/wheels/*.whl
 
+  # ============================================================
+  # Python: x-frida wheel for Linux x86_64
+  # ============================================================
   build-python-linux:
     runs-on: ubuntu-latest
+    container: ghcr.io/frida/x-tools-linux-x86_64:latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install build deps
+      - name: Install Python build deps
         run: pip install setuptools wheel
 
       - name: Configure & Build
@@ -196,9 +196,11 @@ jobs:
 
           ./configure \
             "--prefix=$FRIDA_PREFIX" \
+            --without-prebuilds=sdk:host \
             --enable-frida-python \
             --enable-frida-tools \
             -- \
+            -Dlibdir=lib \
             "-Dfrida-gum:stealth_memfd_name=$STEALTH_MEMFD_NAME" \
             "-Dfrida-gum:stealth_thread_js=$STEALTH_THREAD_JS" \
             "-Dfrida-core:stealth_server_name=$STEALTH_SERVER_NAME" \
@@ -246,9 +248,6 @@ jobs:
           path: assets/
           merge-multiple: true
 
-      - name: List assets
-        run: find assets/ -type f | sort
-
       - name: Get version
         id: version
         run: |
@@ -268,13 +267,13 @@ jobs:
 
             Anti-detection Frida with stealth optimizations.
 
-            ### Install (macOS arm64)
+            ### Install
             ```bash
             pip install x_frida-*.whl
             pip install x_frida_tools-*.whl
             ```
 
-            ### Deploy to Android
+            ### Deploy
             ```bash
             xz -d x-frida-server-android-arm64.xz
             adb push x-frida-server-android-arm64 /data/local/tmp/${{ env.STEALTH_SERVER_NAME }}
@@ -286,9 +285,8 @@ jobs:
             x-frida -H 127.0.0.1:${{ env.STEALTH_PORT }} -n com.target.app -l script.js
             ```
 
-            ### Config
-            | Key | Value |
-            |-----|-------|
+            | Config | Value |
+            |--------|-------|
             | Port | `${{ env.STEALTH_PORT }}` |
             | Magic | `${{ env.STEALTH_MAGIC }}` |
             | Server | `${{ env.STEALTH_SERVER_NAME }}` |
